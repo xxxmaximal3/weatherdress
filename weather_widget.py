@@ -53,12 +53,20 @@ def enable_blur(hwnd):
     except: pass
 
 # ─── Трей ─────────────────────────────────────────────────────
+_tray_log = os.path.join(os.path.expanduser("~"), "weatherdress_debug.txt")
 try:
+    os.environ.setdefault("PYSTRAY_BACKEND", "win32")
     from PIL import Image, ImageDraw, ImageFont
     import pystray
     TRAY_OK = True
-except ImportError:
+    with open(_tray_log, "w", encoding="utf-8") as _f:
+        _f.write("TRAY_OK = True\npystray и PIL загружены успешно\n")
+except Exception as _e:
     TRAY_OK = False
+    with open(_tray_log, "w", encoding="utf-8") as _f:
+        import traceback, sys
+        _f.write(f"TRAY_OK = False\n{_e}\n")
+        traceback.print_exc(file=_f)
 
 def make_tray_img(text="?"):
     img = Image.new("RGBA",(64,64),(0,0,0,0))
@@ -527,7 +535,24 @@ class WeatherWidget:
                                   "", menu)
         self._tray_hwnd = None   # HWND окна pystray — нужен для Shell_NotifyIconGetRect
 
-        threading.Thread(target=self._tray.run, daemon=True).start()
+        def _run_tray():
+            try:
+                self._tray.run_detached()
+            except AttributeError:
+                try:
+                    self._tray.run()
+                except Exception:
+                    import traceback
+                    log = os.path.join(os.path.expanduser("~"), "weatherdress_tray_error.txt")
+                    with open(log, "w") as f:
+                        traceback.print_exc(file=f)
+            except Exception:
+                import traceback
+                log = os.path.join(os.path.expanduser("~"), "weatherdress_tray_error.txt")
+                with open(log, "w") as f:
+                    traceback.print_exc(file=f)
+
+        threading.Thread(target=_run_tray, daemon=True).start()
 
         # Ждём пока pystray создаст своё окно и берём его HWND
         # pystray называет класс окна: "WeatherDress<число>SystemTrayIcon"
